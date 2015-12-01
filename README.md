@@ -22,4 +22,8 @@ sudo launchd-oneshot script.sh
 
 ## Troubleshooting
 
-logs is written to `/tmp/launchd-oneshot.log`
+logs is written to `/tmp/launchd-oneshot.log`, you can view it with
+
+```bash
+tail -f /tmp/launchd-oneshot.log
+```
