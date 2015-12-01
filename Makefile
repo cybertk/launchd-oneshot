@@ -2,7 +2,7 @@ SHELL = /bin/sh -e
 
 FORMULA = launchd-oneshot
 
-test: test-unit test-template test-homebrew-formula
+test: test-template test-homebrew-formula test-unit
 
 test-unit:
 	sudo ./launchd-oneshot tests/job.sh
@@ -25,5 +25,5 @@ test-homebrew-formula:
 
 	# Run tests
 	brew reinstall --HEAD $(FORMULA)
-	brew test $(FORMULA)
-	brew audit --strict --online $(FORMULA).rb
+	# brew test $(FORMULA)
+	# brew audit --strict --online $(FORMULA).rb
