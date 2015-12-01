@@ -2,8 +2,8 @@ class LaunchdOneshot < Formula
   desc "Add a oneshot launchd jobs"
   homepage "https://github.com/cybertk/launchd-oneshot"
   url "https://github.com/cybertk/launchd-oneshot.git",
-    :tag => "v0.1.0-beta.1",
-    :revision => "a705e31d2d27ac3e93684ab99c2073fb34e46412"
+    :tag => "v0.0.1",
+    :revision => "c905bb15f59d19fb858569f6b0f9fa77e4201e19"
 
   head "https://github.com/cybertk/launchd-oneshot.git"
 
