@@ -2,11 +2,13 @@ SHELL = /bin/sh -e
 
 FORMULA = launchd-oneshot
 
-test: test-template test-homebrew-formula test-unit
+test: test-unit test-homebrew-formula
 
 test-unit:
 	sudo ./launchd-oneshot tests/job.sh
 	[ -f /Library/LaunchDaemons/com.cybertk.launchd-oneshot.job.sh.plist ]
+	# test-template:
+	plutil -lint /Library/LaunchDaemons/com.cybertk.launchd-oneshot.job.sh.plist
 
 	sudo rm -f /tmp/launchd-oneshot.test
 	sudo launchctl load /Library/LaunchDaemons/com.cybertk.launchd-oneshot.job.sh.plist
@@ -15,9 +17,6 @@ test-unit:
 	[ ! -f /Library/LaunchDaemons/com.cybertk.launchd-oneshot.job.sh.plist ]
 	sudo launchctl list | grep com.cybertk.launchd-oneshot.job.sh.plist || true
 	
-test-template:
-	# plutil -lint job.plist.template
-
 test-homebrew-formula:
 	# Setup
 	cp $(FORMULA).rb $(shell brew --repository)/Library/Formula
