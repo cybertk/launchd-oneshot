@@ -1,10 +1,47 @@
-#!/bin/sh -e
+#!/bin/sh
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
+# Append `!` to handle `sh -e`
+! read -d '' TEMPLATE << "EOF"
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+	<dict>
+		<key>Label</key>
+		<string>${job_id}</string>
+		<key>EnvironmentVariables</key>
+		<dict>
+			<key>LAUNCHD_ONESHOT_JOB</key>
+			<string>1</string>
+		</dict>
+		<key>Program</key>
+		<string>/usr/local/bin/launchd-oneshot</string>
+		<key>ProgramArguments</key>
+		<array>
+			<string>/usr/local/bin/launchd-oneshot</string>
+			<string>${job}</string>
+		</array>
+		<key>RunAtLoad</key>
+		<true/>
+		<key>KeepAlive</key>
+		<dict>
+	    <key>SuccessfulExit</key>
+	    <false/>
+	  </dict>
+		<key>StandardOutPath</key>
+		<string>/tmp/launchd-oneshot.log</string>
+		<key>StandardErrorPath</key>
+		<string>/tmp/launchd-oneshot.log</string>
+	</dict>
+</plist>
+
+EOF
+
+
 render_template()
 {
-  eval "echo \"$(cat "$1")\""
+  eval "echo \"$(echo "$1")\""
 }
 
 job=$1
@@ -45,6 +82,6 @@ then
    exit 1
 fi
 
-render_template "$SCRIPT_DIR/job.plist.template" > "$launchd_job"
+render_template "$TEMPLATE" > "$launchd_job"
 chmod 644 "$launchd_job"
 echo "Installed $1 to $launchd_job"
