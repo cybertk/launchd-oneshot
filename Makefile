@@ -14,6 +14,7 @@ test-unit:
 	sudo launchctl load /Library/LaunchDaemons/com.cybertk.launchd-oneshot.job.sh.plist
 	sleep 1
 	[ -f /tmp/launchd-oneshot.test ]
+	[ -f tests/job.sh.done.log ]
 	[ ! -f /Library/LaunchDaemons/com.cybertk.launchd-oneshot.job.sh.plist ]
 	sudo launchctl list | grep com.cybertk.launchd-oneshot.job.sh.plist || true
 	

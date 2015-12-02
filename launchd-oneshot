@@ -2,6 +2,8 @@
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
+LOG=/tmp/launchd-oneshot.log
+
 # Append `!` to handle `sh -e`
 ! read -d '' TEMPLATE << "EOF"
 <?xml version="1.0" encoding="UTF-8"?>
@@ -30,9 +32,9 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 	    <false/>
 	  </dict>
 		<key>StandardOutPath</key>
-		<string>/tmp/launchd-oneshot.log</string>
+		<string>${LOG}</string>
 		<key>StandardErrorPath</key>
-		<string>/tmp/launchd-oneshot.log</string>
+		<string>${LOG}</string>
 	</dict>
 </plist>
 
@@ -67,7 +69,8 @@ then
 
   if [ "$rc" -eq 0 ]; then
     rm -f "$launchd_job"
-    echo "Job done"
+    cp "$LOG" "$job.done.log"
+    echo "Job done, archived logs at '$job.done.log'"
     # `launchctl unload` will kill this process immediately
     # `launchctl remove` will unload the job
     launchctl remove "$job_id"
