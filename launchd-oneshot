@@ -66,12 +66,12 @@ then
   rc=$?
 
   if [ "$rc" -eq 0 ]; then
-    # `launchctl unload` will kill this process immediately
-    # TODO: Find a way to unload job first
-    # launchctl unload "$launchd_job"
-    # echo "Never reached here"
     rm -f "$launchd_job"
     echo "Job done"
+    # `launchctl unload` will kill this process immediately
+    # `launchctl remove` will unload the job
+    launchctl remove "$job_id"
+    echo "Never reached here"
   fi
   exit "$rc"
 fi
