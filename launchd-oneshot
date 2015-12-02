@@ -16,10 +16,10 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 			<string>1</string>
 		</dict>
 		<key>Program</key>
-		<string>/usr/local/bin/launchd-oneshot</string>
+		<string>${launchd_oneshot_bin}</string>
 		<key>ProgramArguments</key>
 		<array>
-			<string>/usr/local/bin/launchd-oneshot</string>
+			<string>${launchd_oneshot_bin}</string>
 			<string>${job}</string>
 		</array>
 		<key>RunAtLoad</key>
@@ -54,6 +54,7 @@ then
   exit 1
 fi
 
+launchd_oneshot_bin=$(/usr/local/bin/realpath "$0")
 job=$(/usr/local/bin/realpath "$job") # realpath is installed by `brew install coreutils`
 job_id=com.cybertk.launchd-oneshot.$(basename "$job" | tr ' ' '-')
 launchd_job="/Library/LaunchDaemons/$job_id.plist"
