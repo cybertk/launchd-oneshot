@@ -17,7 +17,18 @@ test-unit:
 	[ -f tests/job.sh.done.log ]
 	[ ! -f /Library/LaunchDaemons/com.cybertk.launchd-oneshot.job.sh.plist ]
 	sudo launchctl list | grep com.cybertk.launchd-oneshot.job.sh.plist || true
-	
+
+    # Install job as Agents
+	sudo ./launchd-oneshot tests/job.sh --agents
+	[ -f /Library/LaunchAgents/com.cybertk.launchd-oneshot.job.sh.plist ]
+
+	sudo rm -f /tmp/launchd-oneshot.test
+	sudo launchctl load /Library/LaunchAgents/com.cybertk.launchd-oneshot.job.sh.plist
+	sleep 1
+	[ -f /tmp/launchd-oneshot.test ]
+	[ -f tests/job.sh.done.log ]
+	[ ! -f /Library/LaunchAgents/com.cybertk.launchd-oneshot.job.sh.plist ]
+	sudo launchctl list | grep com.cybertk.launchd-oneshot.job.sh.plist || true
 test-homebrew-formula:
 	# Setup
 	cp $(FORMULA).rb $(shell brew --repository)/Library/Formula

@@ -23,6 +23,7 @@ LOG=/tmp/launchd-oneshot.log
 		<array>
 			<string>${launchd_oneshot_bin}</string>
 			<string>${job}</string>
+            <string>${job_type}</string>
 		</array>
 		<key>RunAtLoad</key>
 		<true/>
@@ -47,6 +48,8 @@ render_template()
 }
 
 job=$1
+# Daemons vs Agents, default write jobs as deamons
+job_type=${2:-"--daemons"}
 
 if [ ! -x "$job" ];
 then
@@ -59,7 +62,12 @@ fi
 launchd_oneshot_bin=$(/usr/local/bin/realpath "$0")
 job=$(/usr/local/bin/realpath "$job") # realpath is installed by `brew install coreutils`
 job_id=com.cybertk.launchd-oneshot.$(basename "$job" | tr ' ' '-')
-launchd_job="/Library/LaunchDaemons/$job_id.plist"
+
+if [[ "$job_type" = "--agents" ]]; then
+  launchd_job="/Library/LaunchAgents/$job_id.plist"
+else
+  launchd_job="/Library/LaunchDaemons/$job_id.plist"
+fi
 
 if [ -n "$LAUNCHD_ONESHOT_JOB" ];
 then
