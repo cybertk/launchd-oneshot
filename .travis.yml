@@ -1,0 +1,10 @@
+language: objective-c
+# See https://docs.travis-ci.com/user/languages/objective-c/#Supported-OS-X-iOS-SDK-versions
+osx_image: xcode7.2b1
+before_script:
+- brew update
+- umask 027 # see https://github.com/Homebrew/homebrew/issues/46419
+script:
+- make
+notifications:
+  email: false
