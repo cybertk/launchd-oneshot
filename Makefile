@@ -11,11 +11,13 @@ test-unit:
 	plutil -lint /Library/LaunchDaemons/com.cybertk.launchd-oneshot.job.sh.plist
 
 	sudo rm -f /tmp/launchd-oneshot.test
+	sudo rm -f /usr/local/var/log/launchd-oneshot/job.sh.log
 	sudo launchctl load /Library/LaunchDaemons/com.cybertk.launchd-oneshot.job.sh.plist
 	sleep 1
 	[ -f /tmp/launchd-oneshot.test ]
-	[ -f tests/job.sh.done.log ]
+	[ -f /usr/local/var/log/launchd-oneshot/job.sh.log ]
 	[ ! -f /Library/LaunchDaemons/com.cybertk.launchd-oneshot.job.sh.plist ]
+	[ ! -f /usr/local/var/launchd-oneshot/jobs/job.sh ]
 	sudo launchctl list | grep com.cybertk.launchd-oneshot.job.sh.plist || true
 	
 test-homebrew-formula:

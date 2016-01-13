@@ -1,15 +1,16 @@
 #!/bin/sh
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+JOBS_DIR=/usr/local/var/launchd-oneshot/jobs
 launchd_oneshot_bin=$(/usr/local/bin/realpath "$0")
 
-LOG=/tmp/launchd-oneshot.log
+LOGS_DIR=/usr/local/var/log/launchd-oneshot
 
 # Parameters
 # - job_id
 # - launchd_oneshot_bin
 # - job
-# - LOG
+# - log
 # Append `!` to handle `sh -e`
 ! read -d '' TEMPLATE << "EOF"
 <?xml version="1.0" encoding="UTF-8"?>
@@ -38,9 +39,9 @@ LOG=/tmp/launchd-oneshot.log
 	    <false/>
 	  </dict>
 		<key>StandardOutPath</key>
-		<string>${LOG}</string>
+		<string>${log}</string>
 		<key>StandardErrorPath</key>
-		<string>${LOG}</string>
+		<string>${log}</string>
 	</dict>
 </plist>
 
@@ -59,14 +60,14 @@ run_job()
 
     launchd_job="/Library/LaunchDaemons/$job_id.plist"
 
-    eval "$job"
+    eval "$JOBS_DIR/$job"
     rc=$?
 
     if [[ "$rc" -eq 0 ]]; then
         # Job is complete, cleanup
         rm -f "$launchd_job"
-        cp "$LOG" "$job.done.log"
-        echo "Job done, archived logs at '$job.done.log'"
+        rm -f "$JOBS_DIR/$job"
+        echo "Job done, log can be found at '$LOGS_DIR/$job.log'"
         # `launchctl unload` will kill this process immediately
         # `launchctl remove` will unload the job
         launchctl remove "$job_id"
@@ -78,19 +79,27 @@ run_job()
 
 install_job()
 {
-    declare job=$1
+    declare job_path=$1
     declare job_id=$2
 
     launchd_job="/Library/LaunchDaemons/$job_id.plist"
+    job=$(basename "$job_path" | tr ' ' '-')
+    log="$LOGS_DIR/$job.log"
 
     if [[ "$(id -u)" != "0" ]]; then
        echo "error: This script must be run as root" 1>&2
        exit 1
     fi
 
+    # Install launchd agents
     render_template "$TEMPLATE" > "$launchd_job"
     chmod 644 "$launchd_job"
-    echo "Installed $1 to $launchd_job"
+
+    # Install jobs to JOBS_DIR
+    cp "$job_path" "$JOBS_DIR/$job"
+
+    echo "Installed launchd agent to $launchd_job"
+    echo "Installed job to $JOBS_DIR/$job"
 }
 
 main()
@@ -100,6 +109,11 @@ main()
     job=$(/usr/local/bin/realpath "$job") # realpath is installed by `brew install coreutils`
     job_id=com.cybertk.launchd-oneshot.$(basename "$job" | tr ' ' '-')
 
+    if [[ -n "$LAUNCHD_ONESHOT_JOB" ]]; then
+        run_job "$job" "$job_id"
+        exit "$?"
+    fi
+
     if [[ ! -x "$job" ]]; then
         echo "error: $job is not executable"
         echo
@@ -107,10 +121,9 @@ main()
         exit 1
     fi
 
-    if [[ -n "$LAUNCHD_ONESHOT_JOB" ]]; then
-        run_job "$job" "$job_id"
-        exit "$?"
-    fi
+    # Ensure jobs dir is exist
+    mkdir -p "$JOBS_DIR" > /dev/null 2>&1
+    mkdir -p "$LOGS_DIR" > /dev/null 2>&1
 
     install_job "$job" "$job_id"
 }
