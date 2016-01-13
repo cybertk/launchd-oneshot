@@ -53,11 +53,17 @@ render_template()
   eval "echo \"$(echo "$1")\""
 }
 
+id_for_job()
+{
+    declare job=$1
+    echo com.cybertk.launchd-oneshot.$job
+}
+
 run_job()
 {
     declare job=$1
-    declare job_id=$2
 
+    job_id=$(id_for_job "$job")
     launchd_job="/Library/LaunchDaemons/$job_id.plist"
 
     eval "$JOBS_DIR/$job"
@@ -80,10 +86,10 @@ run_job()
 install_job()
 {
     declare job_path=$1
-    declare job_id=$2
 
-    launchd_job="/Library/LaunchDaemons/$job_id.plist"
     job=$(basename "$job_path" | tr ' ' '-')
+    job_id=$(id_for_job "$job")
+    launchd_job="/Library/LaunchDaemons/$job_id.plist"
     log="$LOGS_DIR/$job.log"
 
     if [[ "$(id -u)" != "0" ]]; then
@@ -106,13 +112,12 @@ main()
 {
     declare job=$1
 
-    job=$(/usr/local/bin/realpath "$job") # realpath is installed by `brew install coreutils`
-    job_id=com.cybertk.launchd-oneshot.$(basename "$job" | tr ' ' '-')
-
     if [[ -n "$LAUNCHD_ONESHOT_JOB" ]]; then
-        run_job "$job" "$job_id"
+        run_job "$job"
         exit "$?"
     fi
+
+    job=$(/usr/local/bin/realpath "$job") # realpath is installed by `brew install coreutils`
 
     if [[ ! -x "$job" ]]; then
         echo "error: $job is not executable"
@@ -125,7 +130,7 @@ main()
     mkdir -p "$JOBS_DIR" > /dev/null 2>&1
     mkdir -p "$LOGS_DIR" > /dev/null 2>&1
 
-    install_job "$job" "$job_id"
+    install_job "$job"
 }
 
 main "$@"
