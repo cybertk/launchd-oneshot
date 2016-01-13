@@ -1,9 +1,15 @@
 #!/bin/sh
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+launchd_oneshot_bin=$(/usr/local/bin/realpath "$0")
 
 LOG=/tmp/launchd-oneshot.log
 
+# Parameters
+# - job_id
+# - launchd_oneshot_bin
+# - job
+# - LOG
 # Append `!` to handle `sh -e`
 ! read -d '' TEMPLATE << "EOF"
 <?xml version="1.0" encoding="UTF-8"?>
@@ -46,46 +52,67 @@ render_template()
   eval "echo \"$(echo "$1")\""
 }
 
-job=$1
+run_job()
+{
+    declare job=$1
+    declare job_id=$2
 
-if [ ! -x "$job" ];
-then
-  echo "error: $job is not executable"
-  echo
-  echo "Usage: launchd-oneshot <job>"
-  exit 1
-fi
+    launchd_job="/Library/LaunchDaemons/$job_id.plist"
 
-launchd_oneshot_bin=$(/usr/local/bin/realpath "$0")
-job=$(/usr/local/bin/realpath "$job") # realpath is installed by `brew install coreutils`
-job_id=com.cybertk.launchd-oneshot.$(basename "$job" | tr ' ' '-')
-launchd_job="/Library/LaunchDaemons/$job_id.plist"
+    eval "$job"
+    rc=$?
 
-if [ -n "$LAUNCHD_ONESHOT_JOB" ];
-then
-  # mode: Run job
-  eval "$job"
-  rc=$?
+    if [[ "$rc" -eq 0 ]]; then
+        # Job is complete, cleanup
+        rm -f "$launchd_job"
+        cp "$LOG" "$job.done.log"
+        echo "Job done, archived logs at '$job.done.log'"
+        # `launchctl unload` will kill this process immediately
+        # `launchctl remove` will unload the job
+        launchctl remove "$job_id"
+        echo "Never reached here"
+    fi
 
-  if [ "$rc" -eq 0 ]; then
-    rm -f "$launchd_job"
-    cp "$LOG" "$job.done.log"
-    echo "Job done, archived logs at '$job.done.log'"
-    # `launchctl unload` will kill this process immediately
-    # `launchctl remove` will unload the job
-    launchctl remove "$job_id"
-    echo "Never reached here"
-  fi
-  exit "$rc"
-fi
+    exit "$rc"
+}
 
-# mode: Install job
-if [ "$(id -u)" != "0" ];
-then
-   echo "error: This script must be run as root" 1>&2
-   exit 1
-fi
+install_job()
+{
+    declare job=$1
+    declare job_id=$2
 
-render_template "$TEMPLATE" > "$launchd_job"
-chmod 644 "$launchd_job"
-echo "Installed $1 to $launchd_job"
+    launchd_job="/Library/LaunchDaemons/$job_id.plist"
+
+    if [[ "$(id -u)" != "0" ]]; then
+       echo "error: This script must be run as root" 1>&2
+       exit 1
+    fi
+
+    render_template "$TEMPLATE" > "$launchd_job"
+    chmod 644 "$launchd_job"
+    echo "Installed $1 to $launchd_job"
+}
+
+main()
+{
+    declare job=$1
+
+    job=$(/usr/local/bin/realpath "$job") # realpath is installed by `brew install coreutils`
+    job_id=com.cybertk.launchd-oneshot.$(basename "$job" | tr ' ' '-')
+
+    if [[ ! -x "$job" ]]; then
+        echo "error: $job is not executable"
+        echo
+        echo "Usage: launchd-oneshot <job>"
+        exit 1
+    fi
+
+    if [[ -n "$LAUNCHD_ONESHOT_JOB" ]]; then
+        run_job "$job" "$job_id"
+        exit "$?"
+    fi
+
+    install_job "$job" "$job_id"
+}
+
+main "$@"
