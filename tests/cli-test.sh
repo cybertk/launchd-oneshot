@@ -64,3 +64,19 @@ fixtures
     # it should removed installed job
     [ ! -f "$JOBS_DIR/$expected_job" ]
 }
+
+@test "installing a valid job with --on-login" {
+    expected_job=valid.job
+
+    run sudo launchd-oneshot "$FIXTURE_DIR/$expected_job" --on-login
+    # it should exit 0
+    [ $status -eq 0 ]
+    # it should installed job under $JOBS_DIR
+    [ -f "$JOBS_DIR/$expected_job" ]
+    # it should installed agent under /Library/LaunchDaemons/
+    [ -f /Library/LaunchDaemons/com.cybertk.launchd-oneshot.$expected_job.plist ]
+    plutil -lint /Library/LaunchDaemons/com.cybertk.launchd-oneshot.$expected_job.plist
+    # it should installed corresponding trigger agent under /Library/LaunchAgents/
+    [ -f /Library/LaunchAgents/com.cybertk.launchd-oneshot.$expected_job.trigger.plist ]
+    plutil -lint /Library/LaunchAgents/com.cybertk.launchd-oneshot.$expected_job.trigger.plist
+}
