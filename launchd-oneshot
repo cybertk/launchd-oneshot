@@ -1,99 +1,192 @@
 #!/bin/sh
 
+SCRIPT_PATH=$(/usr/local/bin/realpath "$0")
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+JOBS_DIR=/usr/local/var/launchd-oneshot/jobs
+LOGS_DIR=/usr/local/var/log/launchd-oneshot
 
-LOG=/tmp/launchd-oneshot.log
+PlistBuddy="/usr/libexec/PlistBuddy"
 
-# Append `!` to handle `sh -e`
-! read -d '' TEMPLATE << "EOF"
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-	<dict>
-		<key>Label</key>
-		<string>${job_id}</string>
-		<key>EnvironmentVariables</key>
-		<dict>
-			<key>LAUNCHD_ONESHOT_JOB</key>
-			<string>1</string>
-		</dict>
-		<key>Program</key>
-		<string>${launchd_oneshot_bin}</string>
-		<key>ProgramArguments</key>
-		<array>
-			<string>${launchd_oneshot_bin}</string>
-			<string>${job}</string>
-            <string>${job_type}</string>
-		</array>
-		<key>RunAtLoad</key>
-		<true/>
-		<key>KeepAlive</key>
-		<dict>
-	    <key>SuccessfulExit</key>
-	    <false/>
-	  </dict>
-		<key>StandardOutPath</key>
-		<string>${LOG}</string>
-		<key>StandardErrorPath</key>
-		<string>${LOG}</string>
-	</dict>
-</plist>
-
-EOF
-
-
-render_template()
+job_for_path()
 {
-  eval "echo \"$(echo "$1")\""
+    declare job_path=$1
+    basename "$job_path" | tr ' ' '-'
 }
 
-job=$1
-# Daemons vs Agents, default write jobs as deamons
-job_type=${2:-"--daemons"}
+id_for_job()
+{
+    declare job=$1
+    echo com.cybertk.launchd-oneshot.$job
+}
 
-if [ ! -x "$job" ];
-then
-  echo "error: $job is not executable"
-  echo
-  echo "Usage: launchd-oneshot <job>"
-  exit 1
-fi
+cleanup_job()
+{
+    declare job=$1
 
-launchd_oneshot_bin=$(/usr/local/bin/realpath "$0")
-job=$(/usr/local/bin/realpath "$job") # realpath is installed by `brew install coreutils`
-job_id=com.cybertk.launchd-oneshot.$(basename "$job" | tr ' ' '-')
+    local job_id=$(id_for_job "$job")
+    local launchd_agent="/Library/LaunchDaemons/$job_id.plist"
 
-if [[ "$job_type" = "--agents" ]]; then
-  launchd_job="/Library/LaunchAgents/$job_id.plist"
-else
-  launchd_job="/Library/LaunchDaemons/$job_id.plist"
-fi
-
-if [ -n "$LAUNCHD_ONESHOT_JOB" ];
-then
-  # mode: Run job
-  eval "$job"
-  rc=$?
-
-  if [ "$rc" -eq 0 ]; then
-    rm -f "$launchd_job"
-    cp "$LOG" "$job.done.log"
-    echo "Job done, archived logs at '$job.done.log'"
+    rm -f "$JOBS_DIR/$job"
+    rm -f "$launchd_agent"
+    echo "Job done, log can be found at '$LOGS_DIR/$job.log'"
     # `launchctl unload` will kill this process immediately
     # `launchctl remove` will unload the job
     launchctl remove "$job_id"
-    echo "Never reached here"
-  fi
-  exit "$rc"
-fi
+}
 
-# mode: Install job
-if [ "$(id -u)" != "0" ];
-then
-   echo "error: This script must be run as root" 1>&2
-   exit 1
-fi
+cleanup_trigger_for_job()
+{
+    declare job_id=$1
 
-render_template "$TEMPLATE" > "$launchd_job"
-chmod 644 "$launchd_job"
-echo "Installed $1 to $launchd_job"
+    local trigger_job_id=$1.trigger
+    local launchd_agent="/Library/LaunchAgents/$trigger_job_id.plist"
+
+    rm -f "/tmp/$trigger_job_id.options"
+    rm -f "$launchd_agent"
+    launchctl remove "$trigger_job_id"
+}
+
+run_job()
+{
+    declare job=$1
+
+    local job_id=$(id_for_job "$job")
+    local launchd_agent="/Library/LaunchDaemons/$job_id.plist"
+    local trigger_options="/tmp/$job_id.trigger.options"
+
+    # Source job options if exists
+    local run_as=root
+    [[ -f "$trigger_options" ]] && . "$trigger_options"
+
+    su "$run_as" -c "eval '$JOBS_DIR/$job'"
+    rc=$?
+
+    if [[ "$rc" -eq 0 ]]; then
+        # Job is complete, cleanup
+        [[ -f "$trigger_options" ]] && cleanup_trigger_for_job "$job_id"
+        cleanup_job "$job"
+        echo "Never reached here"
+    fi
+
+    exit "$rc"
+}
+
+install_agent_for_job()
+{
+    declare job_path=$1
+    declare should_watch_trigger=$2
+
+    local job=$(job_for_path "$job_path")
+    local job_id=$(id_for_job "$job")
+    local agent_plist="/Library/LaunchDaemons/$job_id.plist"
+    local log="$LOGS_DIR/$job.log"
+
+    # Install launchd agents
+    $PlistBuddy -c 'Add :Label string '"$job_id" "$agent_plist"
+    $PlistBuddy -c 'Add :ProgramArguments array' "$agent_plist"
+    $PlistBuddy -c 'Add :ProgramArguments:0 string '"$SCRIPT_PATH" "$agent_plist"
+    $PlistBuddy -c 'Add :ProgramArguments:1 string '"$job" "$agent_plist"
+    $PlistBuddy -c 'Add :EnvironmentVariables dict' "$agent_plist"
+    $PlistBuddy -c 'Add :EnvironmentVariables:LAUNCHD_ONESHOT_RUN_JOB string 1' "$agent_plist"
+    $PlistBuddy -c 'Add :KeepAlive dict' "$agent_plist"
+    $PlistBuddy -c 'Add :StandardOutPath string '"$log" "$agent_plist"
+    $PlistBuddy -c 'Add :StandardErrorPath string '"$log" "$agent_plist"
+    if [[ -n "$should_watch_trigger" ]]; then
+        watched_job_id="$job_id.trigger"
+        $PlistBuddy -c 'Add :RunAtLoad bool false' "$agent_plist"
+        $PlistBuddy -c 'Add :KeepAlive:OtherJobEnabled dict' "$agent_plist"
+        $PlistBuddy -c 'Add :KeepAlive:OtherJobEnabled:'"${watched_job_id}"' bool true' "$agent_plist"
+        $PlistBuddy -c 'Add :WatchPaths array' "$agent_plist"
+        $PlistBuddy -c 'Add :WatchPaths:0 string '"/tmp/$job_id.trigger.options" "$agent_plist"
+    else
+        $PlistBuddy -c 'Add :KeepAlive:SuccessfulExit bool false' "$agent_plist"
+        $PlistBuddy -c 'Add :RunAtLoad bool true' "$agent_plist"
+    fi
+
+    chmod 644 "$agent_plist"
+
+    # Install jobs to JOBS_DIR
+    cp "$job_path" "$JOBS_DIR/$job"
+
+    echo "Installed launchd agent to $agent_plist"
+    echo "Installed job to $JOBS_DIR/$job"
+}
+
+install_trigger_for_job()
+{
+    declare origin_job_path=$1
+
+    local origin_job=$(job_for_path $origin_job_path)
+    local job=$origin_job.trigger
+    local job_id=$(id_for_job "$job")
+    local agent_plist="/Library/LaunchAgents/$job_id.plist"
+    local log="$LOGS_DIR/$origin_job.log"
+
+    $PlistBuddy -c 'Add :Label string '"$job_id" "$agent_plist"
+    $PlistBuddy -c 'Add :ProgramArguments array' "$agent_plist"
+    $PlistBuddy -c 'Add :ProgramArguments:0 string '"$SCRIPT_PATH" "$agent_plist"
+    $PlistBuddy -c 'Add :ProgramArguments:1 string '"$job" "$agent_plist"
+    $PlistBuddy -c 'Add :EnvironmentVariables dict' "$agent_plist"
+    $PlistBuddy -c 'Add :EnvironmentVariables:LAUNCHD_ONESHOT_RUN_TRIGGER string 1' "$agent_plist"
+    $PlistBuddy -c 'Add :RunAtLoad bool true' "$agent_plist"
+    $PlistBuddy -c 'Add :KeepAlive dict' "$agent_plist"
+    $PlistBuddy -c 'Add :KeepAlive:SuccessfulExit bool false' "$agent_plist"
+    chmod 644 "$agent_plist"
+    echo "Installed trigger to $agent_plist"
+}
+
+install_job()
+{
+    declare job_path=$1
+    declare job_type=$2
+
+    job_path=$(/usr/local/bin/realpath "$job_path") # realpath is installed by `brew install coreutils`
+    job_type=${job_type:-"--on-boot"}
+
+    if [[ ! -x "$job_path" ]]; then
+        echo "error: $job_path is not executable"
+        echo
+        echo "Usage: launchd-oneshot /path/to/job [--on-boot | --on-login ]"
+        exit 1
+    fi
+
+    if [[ "$(id -u)" != "0" ]]; then
+       echo "error: This script must be run as root" 1>&2
+       exit 1
+    fi
+
+    # Ensure jobs dir is exist
+    mkdir -p "$JOBS_DIR" > /dev/null 2>&1
+    mkdir -p "$LOGS_DIR" > /dev/null 2>&1
+
+    if [[ "$job_type" = "--on-boot" ]]; then
+        install_agent_for_job "$job_path"
+    elif [[ "$job_type" = "--on-login" ]]; then
+        install_trigger_for_job "$job_path"
+        install_agent_for_job "$job_path" --watch-trigger
+    else
+        echo "unkownn job type: $job_type"
+        exit 1
+    fi
+}
+
+main()
+{
+    declare arg1=$1
+    declare arg2=$2
+
+    # local job_id=com.cybertk.launchd-oneshot.$(basename "$job" | tr ' ' '-')
+
+    if [[ -n "$LAUNCHD_ONESHOT_RUN_TRIGGER" ]]; then
+        local job_options_file=/tmp/$(id_for_job $arg1).options
+        echo "run_as=`id -un`" > "$job_options_file"
+    elif [[ -n "$LAUNCHD_ONESHOT_RUN_JOB" ]]; then
+        run_job "$arg1"
+    else
+        install_job "$arg1" "$arg2"
+    fi
+
+    exit "$?"
+}
+
+main "$@"

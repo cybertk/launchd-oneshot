@@ -1,0 +1,5 @@
+#!/bin/sh
+
+echo "hello from fixtures/jobs/valid_job"
+touch /tmp/launchd-oneshot-fixtures.valid.job.signature
+touch /tmp/launchd-oneshot-fixtures.valid.job.signature.by.`id -un`
