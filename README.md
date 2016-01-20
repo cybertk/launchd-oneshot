@@ -9,7 +9,7 @@
 **launchd-oneshot** can be installed via Homebrew
 
 ```bash
-brew install https://raw.githubusercontent.com/cybertk/launchd-oneshot/master/launchd-oneshot.rb
+brew install --HEAD https://raw.githubusercontent.com/cybertk/launchd-oneshot/master/packaging/homebrew/launchd-oneshot.rb
 ```
 
 ## Getting started

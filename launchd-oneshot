@@ -1,11 +1,17 @@
-#!/bin/sh
+#!/bin/bash
 
-SCRIPT_PATH=$(/usr/local/bin/realpath "$0")
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+PlistBuddy="/usr/libexec/PlistBuddy"
+realpath="/usr/local/bin/realpath"
+
+SCRIPT_PATH=$($realpath "$0")
 JOBS_DIR=/usr/local/var/launchd-oneshot/jobs
 LOGS_DIR=/usr/local/var/log/launchd-oneshot
 
-PlistBuddy="/usr/libexec/PlistBuddy"
+
+usage()
+{
+    echo "Usage: launchd-oneshot /path/to/job [--on-boot | --on-login | --on-login-as-root]"
+}
 
 job_for_path()
 {
@@ -16,15 +22,16 @@ job_for_path()
 id_for_job()
 {
     declare job=$1
-    echo com.cybertk.launchd-oneshot.$job
+    echo "com.cybertk.launchd-oneshot.$job"
 }
 
 cleanup_job()
 {
     declare job=$1
+    local job_id launchd_agent
 
-    local job_id=$(id_for_job "$job")
-    local launchd_agent="/Library/LaunchDaemons/$job_id.plist"
+    job_id=$(id_for_job "$job")
+    launchd_agent="/Library/LaunchDaemons/$job_id.plist"
 
     rm -f "$JOBS_DIR/$job"
     rm -f "$launchd_agent"
@@ -37,9 +44,10 @@ cleanup_job()
 cleanup_trigger_for_job()
 {
     declare job_id=$1
+    local trigger_job_id launchd_agent
 
-    local trigger_job_id=$1.trigger
-    local launchd_agent="/Library/LaunchAgents/$trigger_job_id.plist"
+    trigger_job_id=$1.trigger
+    launchd_agent="/Library/LaunchAgents/$trigger_job_id.plist"
 
     rm -f "/tmp/$trigger_job_id.options"
     rm -f "$launchd_agent"
@@ -48,15 +56,16 @@ cleanup_trigger_for_job()
 
 run_job()
 {
-    declare job=$1
-    declare run_as=$2
+    declare job=$1 run_as=$2
+    local job_id launchd_agent trigger_options
 
-    local job_id=$(id_for_job "$job")
-    local launchd_agent="/Library/LaunchDaemons/$job_id.plist"
-    local trigger_options="/tmp/$job_id.trigger.options"
+    job_id=$(id_for_job "$job")
+    launchd_agent="/Library/LaunchDaemons/$job_id.plist"
+    trigger_options="/tmp/$job_id.trigger.options"
 
     # Source job options if exists
-    local login_user=root
+    declare login_user=root
+		# shellcheck source=/dev/null
     [[ -f "$trigger_options" ]] && . "$trigger_options"
 
     su "${run_as:-$login_user}" -c "eval '$JOBS_DIR/$job $login_user'"
@@ -74,14 +83,13 @@ run_job()
 
 install_agent_for_job()
 {
-    declare job_path=$1
-    declare should_watch_trigger=$2
-    declare run_as_root=$3
+    declare job_path=$1 should_watch_trigger=$2 run_as_root=$3
+		local job job_id agent_plist log
 
-    local job=$(job_for_path "$job_path")
-    local job_id=$(id_for_job "$job")
-    local agent_plist="/Library/LaunchDaemons/$job_id.plist"
-    local log="$LOGS_DIR/$job.log"
+    job=$(job_for_path "$job_path")
+    job_id=$(id_for_job "$job")
+    agent_plist="/Library/LaunchDaemons/$job_id.plist"
+    log="$LOGS_DIR/$job.log"
 
     # Install launchd agents
     $PlistBuddy -c 'Add :Label string '"$job_id" "$agent_plist"
@@ -120,12 +128,13 @@ install_agent_for_job()
 install_trigger_for_job()
 {
     declare origin_job_path=$1
+    local origin_job job job_id agent_plist log
 
-    local origin_job=$(job_for_path $origin_job_path)
-    local job=$origin_job.trigger
-    local job_id=$(id_for_job "$job")
-    local agent_plist="/Library/LaunchAgents/$job_id.plist"
-    local log="$LOGS_DIR/$origin_job.log"
+    origin_job=$(job_for_path "$origin_job_path")
+    job=$origin_job.trigger
+    job_id=$(id_for_job "$job")
+    agent_plist="/Library/LaunchAgents/$job_id.plist"
+    log="$LOGS_DIR/$origin_job.log"
 
     $PlistBuddy -c 'Add :Label string '"$job_id" "$agent_plist"
     $PlistBuddy -c 'Add :ProgramArguments array' "$agent_plist"
@@ -142,16 +151,20 @@ install_trigger_for_job()
 
 install_job()
 {
-    declare job_path=$1
-    declare job_type=$2
+    declare job_path=$1 job_type=$2
 
-    job_path=$(/usr/local/bin/realpath "$job_path") # realpath is installed by `brew install coreutils`
+    job_path=$($realpath "$job_path" 2>/dev/null) # realpath is installed by `brew install coreutils`
     job_type=${job_type:-"--on-boot"}
+
+    if [[ -z "$job_path" ]]; then
+        usage
+        exit 0
+    fi
 
     if [[ ! -x "$job_path" ]]; then
         echo "error: $job_path is not executable"
         echo
-        echo "Usage: launchd-oneshot /path/to/job [--on-boot | --on-login ]"
+        usage
         exit 1
     fi
 
@@ -180,14 +193,15 @@ install_job()
 
 main()
 {
-    declare arg1=$1
-    declare arg2=$2
+    declare arg1=$1 arg2=$2
 
     # local job_id=com.cybertk.launchd-oneshot.$(basename "$job" | tr ' ' '-')
 
     if [[ -n "$LAUNCHD_ONESHOT_RUN_TRIGGER" ]]; then
-        local job_options_file=/tmp/$(id_for_job $arg1).options
-        echo "login_user=`id -un`" > "$job_options_file"
+        local job_options_file
+
+        job_options_file="/tmp/$(id_for_job "$arg1").options"
+        echo "login_user=$(id -un)" > "$job_options_file"
     elif [[ -n "$LAUNCHD_ONESHOT_RUN_JOB" ]]; then
         local run_as
 
