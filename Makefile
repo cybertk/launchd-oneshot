@@ -2,7 +2,11 @@ SHELL = /bin/sh -e
 
 FORMULA = launchd-oneshot
 
-test: test-unit test-homebrew-formula
+test: test-lint test-unit test-homebrew-formula
+
+test-lint:
+	# Follow progrium's bashstype, see https://github.com/progrium/bashstyle
+	shellcheck launchd-oneshot
 
 test-unit:
 	bats tests/cli-test.sh
