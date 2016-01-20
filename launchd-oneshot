@@ -1,11 +1,13 @@
 #!/bin/sh
 
-SCRIPT_PATH=$(/usr/local/bin/realpath "$0")
+PlistBuddy="/usr/libexec/PlistBuddy"
+realpath="/usr/local/bin/realpath"
+
+SCRIPT_PATH=$($realpath "$0")
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 JOBS_DIR=/usr/local/var/launchd-oneshot/jobs
 LOGS_DIR=/usr/local/var/log/launchd-oneshot
 
-PlistBuddy="/usr/libexec/PlistBuddy"
 
 usage()
 {
@@ -150,7 +152,7 @@ install_job()
     declare job_path=$1
     declare job_type=$2
 
-    job_path=$(/usr/local/bin/realpath "$job_path") # realpath is installed by `brew install coreutils`
+    job_path=$($realpath "$job_path") # realpath is installed by `brew install coreutils`
     job_type=${job_type:-"--on-boot"}
 
     if [[ ! -x "$job_path" ]]; then
