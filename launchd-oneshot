@@ -152,8 +152,13 @@ install_job()
     declare job_path=$1
     declare job_type=$2
 
-    job_path=$($realpath "$job_path") # realpath is installed by `brew install coreutils`
+    job_path=$($realpath "$job_path" 2>/dev/null) # realpath is installed by `brew install coreutils`
     job_type=${job_type:-"--on-boot"}
+
+    if [[ -z "$job_path" ]]; then
+        usage
+        exit 0
+    fi
 
     if [[ ! -x "$job_path" ]]; then
         echo "error: $job_path is not executable"
