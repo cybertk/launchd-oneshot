@@ -8,7 +8,7 @@ test-unit:
 	bats tests/cli-test.sh
 test-homebrew-formula:
 	# Setup
-	cp $(FORMULA).rb $(shell brew --repository)/Library/Formula
+	cp packaging/homebrew/$(FORMULA).rb $(shell brew --repository)/Library/Formula
 	chmod 640 $(shell brew --repository)/Library/Formula/$(FORMULA).rb
 
 	# Run tests
