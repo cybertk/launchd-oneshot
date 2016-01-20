@@ -26,6 +26,13 @@ To add a oneshot job `script.sh` to run at next user login time
 sudo launchd-oneshot script.sh --on-login
 ```
 
+To add a oneshot job `script.sh` to run at next user login time with root, and **launchd-oneshot** will pass current login user as `$1` to `script.sh`
+
+```bash
+sudo launchd-oneshot script.sh --on-login-as-root
+```
+
+
 ## Troubleshooting
 
 logs is written to `/tmp/launchd-oneshot.log`, you can view it with

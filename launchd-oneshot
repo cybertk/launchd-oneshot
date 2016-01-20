@@ -49,16 +49,17 @@ cleanup_trigger_for_job()
 run_job()
 {
     declare job=$1
+    declare run_as=$2
 
     local job_id=$(id_for_job "$job")
     local launchd_agent="/Library/LaunchDaemons/$job_id.plist"
     local trigger_options="/tmp/$job_id.trigger.options"
 
     # Source job options if exists
-    local run_as=root
+    local login_user=root
     [[ -f "$trigger_options" ]] && . "$trigger_options"
 
-    su "$run_as" -c "eval '$JOBS_DIR/$job'"
+    su "${run_as:-$login_user}" -c "eval '$JOBS_DIR/$job $login_user'"
     rc=$?
 
     if [[ "$rc" -eq 0 ]]; then
@@ -75,6 +76,7 @@ install_agent_for_job()
 {
     declare job_path=$1
     declare should_watch_trigger=$2
+    declare run_as_root=$3
 
     local job=$(job_for_path "$job_path")
     local job_id=$(id_for_job "$job")
@@ -103,6 +105,9 @@ install_agent_for_job()
         $PlistBuddy -c 'Add :RunAtLoad bool true' "$agent_plist"
     fi
 
+    if [[ -n "$run_as_root" ]]; then
+        $PlistBuddy -c 'Add :EnvironmentVariables:LAUNCHD_ONESHOT_RUN_JOB_AS_ROOT string 1' "$agent_plist"
+    fi
     chmod 644 "$agent_plist"
 
     # Install jobs to JOBS_DIR
@@ -164,6 +169,9 @@ install_job()
     elif [[ "$job_type" = "--on-login" ]]; then
         install_trigger_for_job "$job_path"
         install_agent_for_job "$job_path" --watch-trigger
+    elif [[ "$job_type" = "--on-login-as-root" ]]; then
+        install_trigger_for_job "$job_path"
+        install_agent_for_job "$job_path" --watch-trigger --run-as-root
     else
         echo "unkownn job type: $job_type"
         exit 1
@@ -179,9 +187,12 @@ main()
 
     if [[ -n "$LAUNCHD_ONESHOT_RUN_TRIGGER" ]]; then
         local job_options_file=/tmp/$(id_for_job $arg1).options
-        echo "run_as=`id -un`" > "$job_options_file"
+        echo "login_user=`id -un`" > "$job_options_file"
     elif [[ -n "$LAUNCHD_ONESHOT_RUN_JOB" ]]; then
-        run_job "$arg1"
+        local run_as
+
+        [[ -n "$LAUNCHD_ONESHOT_RUN_JOB_AS_ROOT" ]] && run_as=root
+        run_job "$arg1" "$run_as"
     else
         install_job "$arg1" "$arg2"
     fi
