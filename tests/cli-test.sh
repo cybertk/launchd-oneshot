@@ -78,6 +78,8 @@ fixtures
     [ -f "$expected_job_signature" ]
     # it should run job by root
     [ -f "$expected_job_signature.by.root" ]
+    # it should run job with parameters (root)
+    [ -f "$expected_job_signature.params.login_user.root" ]
     # it should generating log of job
     [ -f /usr/local/var/log/launchd-oneshot/$expected_job.log ]
     # it should removed agent
@@ -168,6 +170,8 @@ fixtures
     [ -f "$expected_job_signature" ]
     # it should run job by current login user
     [ -f "$expected_job_signature.by.`id -un`" ]
+    # it should run job with parameters ($current_login_user)
+    [ -f "$expected_job_signature.params.login_user.`id -un`" ]
     # it should generating log of job
     [ -f /usr/local/var/log/launchd-oneshot/$expected_job.log ]
     # it should removed agent
@@ -263,6 +267,8 @@ fixtures
     [ -f "$expected_job_signature" ]
     # it should run job by root
     [ -f "$expected_job_signature.by.root" ]
+    # it should run job with parameters ($current_login_user)
+    [ -f "$expected_job_signature.params.login_user.`id -un`" ]
     # it should generating log of job
     [ -f /usr/local/var/log/launchd-oneshot/$expected_job.log ]
     # it should removed agent

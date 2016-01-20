@@ -1,5 +1,8 @@
 #!/bin/sh
 
+login_user=$1
+
 echo "hello from fixtures/jobs/valid_job"
 touch /tmp/launchd-oneshot-fixtures.valid.job.signature
 touch /tmp/launchd-oneshot-fixtures.valid.job.signature.by.`id -un`
+touch /tmp/launchd-oneshot-fixtures.valid.job.signature.params.login_user.$login_user
