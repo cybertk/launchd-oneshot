@@ -17,8 +17,8 @@ test-homebrew-formula:
 
 	# Run tests
 	brew reinstall --HEAD $(FORMULA)
-	# brew test $(FORMULA)
-	# brew audit --strict --online $(FORMULA).rb
+	brew test $(FORMULA)
+	brew audit --strict --online $(FORMULA)
 
 bootstrap:
 	brew reinstall bats shellcheck
